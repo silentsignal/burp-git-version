@@ -39,7 +39,14 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 			@Override
 			public void actionPerformed(ActionEvent event) {
 				try {
-					String gitDir = "/path/to/.git"; // FIXME
+					JFileChooser chooser = new JFileChooser();
+					chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+					chooser.setAcceptAllFileFilterUsed(false);
+					chooser.setFileHidingEnabled(false); // .git is considered hidden
+					if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return;
+					File gitDir = chooser.getCurrentDirectory();
+					File gitSubDir = new File(gitDir, ".git");
+					if (gitSubDir.exists()) gitDir = gitSubDir;
 					List<ObjectId> conditions = new ArrayList<>(messages.length);
 					MessageDigest md = MessageDigest.getInstance("SHA");
 					for (IHttpRequestResponse messageInfo : messages) {
@@ -82,15 +89,13 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		t.printStackTrace(new PrintStream(stderr));
 	}
 
-	private static Set<RevCommit> findCommits(String gitDir,
+	private static Set<RevCommit> findCommits(File gitDir,
 			Iterable<ObjectId> conditions) throws IOException, GitAPIException {
 		Set<RevCommit> commonCommits = null;
-		try (Repository repository = new FileRepositoryBuilder().setGitDir(
-					new File(gitDir)).build()) {
+		try (Repository repository = new FileRepositoryBuilder().setGitDir(gitDir).build()) {
 			try (Git git = new Git(repository)) {
 				for (ObjectId hash : conditions) {
 					Set<RevCommit> matchingCommits = new HashSet<>();
-
 
 					Iterable<RevCommit> commits = git.log().all().call();
 					for (RevCommit commit : commits) {
