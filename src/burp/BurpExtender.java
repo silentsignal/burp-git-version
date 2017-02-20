@@ -40,15 +40,20 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 			public void actionPerformed(ActionEvent event) {
 				try {
 					String gitDir = "/path/to/.git"; // FIXME
-					List<byte[]> conditions = new ArrayList<>(messages.length);
+					List<ObjectId> conditions = new ArrayList<>(messages.length);
+					MessageDigest md = MessageDigest.getInstance("SHA");
 					for (IHttpRequestResponse messageInfo : messages) {
 						IHttpService hs = messageInfo.getHttpService();
 						IRequestInfo reqInfo = helpers.analyzeRequest(messageInfo);
 						IResponseInfo respInfo = helpers.analyzeResponse(messageInfo.getResponse());
 						byte[] response = messageInfo.getResponse();
-						byte[] contents = Arrays.copyOfRange(response,
-								respInfo.getBodyOffset(), response.length);
-						conditions.add(contents);
+						int offset = respInfo.getBodyOffset();
+						int length = response.length - offset;
+						md.reset();
+						String prefix = String.format("blob %d\0", length);
+						md.update(prefix.getBytes(StandardCharsets.US_ASCII));
+						md.update(response, offset, length);
+						conditions.add(ObjectId.fromRaw(md.digest()));
 					}
 					Set<RevCommit> cs = findCommits(gitDir, conditions);
 					try (PrintStream ps = new PrintStream(stderr)) {
@@ -78,20 +83,14 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 	}
 
 	private static Set<RevCommit> findCommits(String gitDir,
-			Iterable<byte[]> conditions) throws IOException, NoSuchAlgorithmException, GitAPIException {
-		MessageDigest md = MessageDigest.getInstance("SHA");
+			Iterable<ObjectId> conditions) throws IOException, GitAPIException {
 		Set<RevCommit> commonCommits = null;
 		try (Repository repository = new FileRepositoryBuilder().setGitDir(
 					new File(gitDir)).build()) {
 			try (Git git = new Git(repository)) {
-				for (byte[] contents : conditions) {
+				for (ObjectId hash : conditions) {
 					Set<RevCommit> matchingCommits = new HashSet<>();
 
-					md.reset();
-					String prefix = String.format("blob %d\0", contents.length);
-					md.update(prefix.getBytes(StandardCharsets.US_ASCII));
-					// TODO optimize this in Burp by computing it directly on the source byte[]
-					ObjectId hash = ObjectId.fromRaw(md.digest(contents));
 
 					Iterable<RevCommit> commits = git.log().all().call();
 					for (RevCommit commit : commits) {
