@@ -64,16 +64,16 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 					}
 					Set<RevCommit> cs = findCommits(gitDir, conditions);
 					try (PrintStream ps = new PrintStream(stderr)) {
-						ps.println(cs);
-						ps.println(cs.size());
+						ps.format("The specified files are present in %d commits.\n\n", cs.size());
 						List<RevCommit> cl = new ArrayList<>(cs);
 						Collections.sort(cl, new Comparator<RevCommit>() {
 							public int compare(RevCommit c1, RevCommit c2) {
-								return c1.getCommitTime() - c2.getCommitTime();
+								return c2.getCommitTime() - c1.getCommitTime();
 							}
 						});
-						ps.println(cl.get(0)); // XXX az első, ami _már_ a keresett
-						ps.println(cl.get(cl.size() - 1)); // XXX az utolsó, amig _még_ a keresett
+						reportCommit(ps, "first", cl.get(0));
+						reportCommit(ps, "last", cl.get(cl.size() - 1));
+						ps.format("\nThe full list of affected commits is below:\n\n%s", cl);
 					}
 				} catch (Exception e) {
 					reportError(e, "Git version error"); // FIXME
@@ -81,6 +81,13 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 			}
 		});
 		return Collections.singletonList(i);
+	}
+
+	private static void reportCommit(PrintStream ps, String which, RevCommit commit) {
+		ps.format("The %s commit that matches the observed file contents is ", which);
+		ps.print(commit.abbreviate(10));
+		ps.format(" which was committed at %s\n",
+				new java.util.Date(commit.getCommitTime() * 1000L));
 	}
 
 	private void reportError(Throwable t, String title) {
