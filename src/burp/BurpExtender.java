@@ -64,6 +64,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 					}
 					Set<RevCommit> cs = findCommits(gitDir, conditions);
 					try (PrintStream ps = new PrintStream(stderr)) {
+						// TODO handle null
+						// TODO measure timing
 						ps.format("The specified files are present in %d commits.\n\n", cs.size());
 						List<RevCommit> cl = new ArrayList<>(cs);
 						Collections.sort(cl, new Comparator<RevCommit>() {
@@ -102,6 +104,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		try (Repository repository = new FileRepositoryBuilder().setGitDir(gitDir).build()) {
 			try (Git git = new Git(repository)) {
 				for (ObjectId hash : conditions) {
+					// TODO does the repository even contain the blob?
+					//  - sanity check before going through commits/trees
+					//  - would produce empty matchingCommits (see below)
+					//  - skip hash / return with null (short circuit)?
 					Set<RevCommit> matchingCommits = new HashSet<>();
 
 					Iterable<RevCommit> commits = git.log().all().call();
@@ -125,6 +131,9 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 						commonCommits = matchingCommits;
 					} else {
 						commonCommits.retainAll(matchingCommits);
+						// TODO what if matchingCommits is empty?
+						//  - return immediately / short circuit?
+						//  - ignore file (see conflict below as well)
 					}
 					if (commonCommits.size() == 1) break; // TODO conflicting conditions?
 				}
