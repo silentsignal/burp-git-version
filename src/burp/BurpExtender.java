@@ -67,20 +67,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 					long delta = System.currentTimeMillis() - start;
 					try (PrintStream ps = new PrintStream(stderr)) {
 						ps.format("Processing took %d ms.\n", delta);
-						if (cs == null) {
-							ps.println("No commits matched the observed file contents.");
-							return;
-						}
-						ps.format("The specified files are present in %d commits.\n\n", cs.size());
-						List<RevCommit> cl = new ArrayList<>(cs);
-						Collections.sort(cl, new Comparator<RevCommit>() {
-							public int compare(RevCommit c1, RevCommit c2) {
-								return c2.getCommitTime() - c1.getCommitTime();
-							}
-						});
-						reportCommit(ps, "first", cl.get(0));
-						reportCommit(ps, "last", cl.get(cl.size() - 1));
-						ps.format("\nThe full list of affected commits is below:\n\n%s", cl);
+						reportCommits(cs, ps);
 					}
 				} catch (Exception e) {
 					reportError(e, "Git version error"); // FIXME
@@ -88,6 +75,23 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 			}
 		});
 		return Collections.singletonList(i);
+	}
+
+	private static void reportCommits(Set<RevCommit> cs, PrintStream ps) {
+		if (cs == null) {
+			ps.println("No commits matched the observed file contents.");
+			return;
+		}
+		ps.format("The specified files are present in %d commits.\n\n", cs.size());
+		List<RevCommit> cl = new ArrayList<>(cs);
+		Collections.sort(cl, new Comparator<RevCommit>() {
+			public int compare(RevCommit c1, RevCommit c2) {
+				return c2.getCommitTime() - c1.getCommitTime();
+			}
+		});
+		reportCommit(ps, "first", cl.get(0));
+		reportCommit(ps, "last", cl.get(cl.size() - 1));
+		ps.format("\nThe full list of affected commits is below:\n\n%s", cl);
 	}
 
 	private static void reportCommit(PrintStream ps, String which, RevCommit commit) {
