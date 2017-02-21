@@ -64,8 +64,11 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 					}
 					Set<RevCommit> cs = findCommits(gitDir, conditions);
 					try (PrintStream ps = new PrintStream(stderr)) {
-						// TODO handle null
 						// TODO measure timing
+						if (cs == null) {
+							ps.println("No commits matched the observed file contents.");
+							return;
+						}
 						ps.format("The specified files are present in %d commits.\n\n", cs.size());
 						List<RevCommit> cl = new ArrayList<>(cs);
 						Collections.sort(cl, new Comparator<RevCommit>() {
