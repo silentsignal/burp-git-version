@@ -62,9 +62,11 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 						md.update(response, offset, length);
 						conditions.add(ObjectId.fromRaw(md.digest()));
 					}
+					long start = System.currentTimeMillis();
 					Set<RevCommit> cs = findCommits(gitDir, conditions);
+					long delta = System.currentTimeMillis() - start;
 					try (PrintStream ps = new PrintStream(stderr)) {
-						// TODO measure timing
+						ps.format("Processing took %d ms.\n", delta);
 						if (cs == null) {
 							ps.println("No commits matched the observed file contents.");
 							return;
