@@ -118,20 +118,17 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 					//  - would produce empty matchingCommits (see below)
 					//  - skip hash / return with null (short circuit)?
 					Set<RevCommit> matchingCommits = new HashSet<>();
+					Set<AnyObjectId> knownToContain = new HashSet<>();
+					Set<AnyObjectId> knownToBeFreeOf = new HashSet<>();
 
 					Iterable<RevCommit> commits = git.log().all().call();
 					for (RevCommit commit : commits) {
 						RevTree tree = commit.getTree();
 						try (TreeWalk treeWalk = new TreeWalk(repository)) {
 							treeWalk.addTree(tree);
-							treeWalk.setRecursive(true);
-							// TODO cache subtrees
-							while (treeWalk.next()) {
-								if (treeWalk.getObjectId(0).equals(hash)) {
-									commit.disposeBody();
-									matchingCommits.add(commit);
-									break;
-								}
+							if (isHashInTree(treeWalk, tree, hash, knownToContain, knownToBeFreeOf) == RecursiveResult.FOUND) {
+								commit.disposeBody();
+								matchingCommits.add(commit);
 							}
 						}
 					}
@@ -149,5 +146,45 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 			}
 		}
 		return commonCommits;
+	}
+
+	private enum RecursiveResult { FOUND, NOT_FOUND, EOF; };
+
+	private static RecursiveResult isHashInTree(TreeWalk treeWalk, AnyObjectId tree,
+			ObjectId hash, Set<AnyObjectId> knownToContain,
+			Set<AnyObjectId> knownToBeFreeOf) throws IOException {
+		int depth = treeWalk.getDepth();
+		MutableObjectId mid = new MutableObjectId();
+		boolean skip = false;
+treewalk_loop:
+		while (skip || treeWalk.next()) {
+			skip = false;
+			if (treeWalk.getDepth() != depth) {
+				knownToBeFreeOf.add(tree.toObjectId());
+				return RecursiveResult.NOT_FOUND;
+			}
+			treeWalk.getObjectId(mid, 0);
+			if (mid.equals(hash)) {
+				knownToContain.add(tree.toObjectId());
+				return RecursiveResult.FOUND;
+			}
+			if (treeWalk.isSubtree()) {
+				if (knownToBeFreeOf.contains(mid)) continue; // more likely ho happen
+				if (knownToContain.contains(mid)) return RecursiveResult.FOUND;
+				treeWalk.enterSubtree();
+				RecursiveResult rr = isHashInTree(treeWalk, mid, hash, knownToContain, knownToBeFreeOf);
+				switch (rr) {
+					case FOUND:
+						knownToContain.add(tree.toObjectId());
+						return RecursiveResult.FOUND;
+					case EOF:
+						break treewalk_loop;
+					case NOT_FOUND:
+						skip = true;
+				}
+			}
+		}
+		knownToBeFreeOf.add(tree); // because of EOF, it won't be mutated in caller
+		return RecursiveResult.EOF;
 	}
 }
