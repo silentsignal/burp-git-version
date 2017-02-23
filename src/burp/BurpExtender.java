@@ -78,7 +78,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 	}
 
 	private static void reportCommits(Set<RevCommit> cs, PrintStream ps) {
-		if (cs == null) {
+		if (cs == null || cs.isEmpty()) {
 			ps.println("No commits matched the observed file contents.");
 			return;
 		}
