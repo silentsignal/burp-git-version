@@ -106,6 +106,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 				}
 				System.err.print(String.format("\r[%s] %3d%%", new String(chars), percent));
 			}
+
+			public void blobNotInRepository(ObjectId hash) {
+				System.err.format("\nBlob not in repository: %s\n", hash);
+			}
 		});
 		System.err.println();
 		reportCommits(cs, System.out);
@@ -145,6 +149,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		public void startedNewHash(ObjectId hash);
 		public void setCommitCount(int count);
 		public void setCommitProgress(int progress);
+		public void blobNotInRepository(ObjectId hash);
 	}
 
 	private static Set<RevCommit> findCommits(File gitDir,
@@ -156,10 +161,11 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 				for (RevCommit commit : git.log().all().call()) count++;
 				fb.setCommitCount(count);
 				for (ObjectId hash : conditions) {
-					// TODO does the repository even contain the blob?
-					//  - sanity check before going through commits/trees
-					//  - would produce empty matchingCommits (see below)
-					//  - skip hash / return with null (short circuit)?
+					if (!repository.hasObject(hash)) {
+						fb.blobNotInRepository(hash);
+						continue;
+					}
+
 					Set<RevCommit> matchingCommits = new HashSet<>();
 					Set<AnyObjectId> knownToContain = new HashSet<>();
 					Set<AnyObjectId> knownToBeFreeOf = new HashSet<>();
@@ -179,13 +185,13 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 						}
 					}
 
-					if (commonCommits == null) {
+					if (matchingCommits.isEmpty()) {
+						fb.blobNotInRepository(hash);
+						continue;
+					} else if (commonCommits == null) {
 						commonCommits = matchingCommits;
 					} else {
 						commonCommits.retainAll(matchingCommits);
-						// TODO what if matchingCommits is empty?
-						//  - return immediately / short circuit?
-						//  - ignore file (see conflict below as well)
 					}
 					if (commonCommits.size() < 2) break; // TODO conflicting conditions?
 				}
