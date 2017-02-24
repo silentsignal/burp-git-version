@@ -86,7 +86,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		List<RevCommit> cl = new ArrayList<>(cs);
 		Collections.sort(cl, new Comparator<RevCommit>() {
 			public int compare(RevCommit c1, RevCommit c2) {
-				return c2.getCommitTime() - c1.getCommitTime();
+				return c1.getCommitTime() - c2.getCommitTime();
 			}
 		});
 		reportCommit(ps, "first", cl.get(0));
