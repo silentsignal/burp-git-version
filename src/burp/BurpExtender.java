@@ -5,6 +5,7 @@ import java.nio.file.*;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.util.*;
+import java.util.stream.*;
 
 import java.awt.event.*;
 import javax.swing.*;
@@ -79,6 +80,35 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		} catch (Exception e) {
 			reportError(e, "Git version error"); // FIXME
 		}
+	}
+
+	public static void main(String[] args) throws Exception {
+		File gitDir = new File(args[0]);
+
+		Iterable<ObjectId> conditions = Arrays.asList(args).subList(1,
+				args.length).stream().map(h -> ObjectId.fromString(h)).collect(Collectors.toList());
+		Set<RevCommit> cs = findCommits(gitDir, conditions, new CommitFeedback() {
+			int count = 0;
+			char[] chars = new char[100];
+
+			public void setCommitCount(int count) {
+				this.count = count;
+			}
+
+			public void startedNewHash(ObjectId hash) {
+				System.err.println("\nstarted working on " + hash);
+			}
+
+			public void setCommitProgress(int progress) {
+				int percent = progress * 100 / count;
+				for (int i = 0; i < 100; i++) {
+					chars[i] = i <= percent ? '#' : ' ';
+				}
+				System.err.print(String.format("\r[%s] %3d%%", new String(chars), percent));
+			}
+		});
+		System.err.println();
+		reportCommits(cs, System.out);
 	}
 
 	private static void reportCommits(Set<RevCommit> cs, PrintStream ps) {
