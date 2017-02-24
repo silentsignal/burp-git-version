@@ -70,7 +70,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 				conditions.add(ObjectId.fromRaw(md.digest()));
 			}
 			long start = System.currentTimeMillis();
-			Set<RevCommit> cs = findCommits(gitDir, conditions);
+			Set<RevCommit> cs = findCommits(gitDir, conditions, null); // TODO implement UI feedback
 			long delta = System.currentTimeMillis() - start;
 			try (PrintStream ps = new PrintStream(stderr)) {
 				ps.format("Processing took %d ms.\n", delta);
@@ -111,11 +111,20 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		t.printStackTrace(new PrintStream(stderr));
 	}
 
+	private interface CommitFeedback {
+		public void startedNewHash(ObjectId hash);
+		public void setCommitCount(int count);
+		public void setCommitProgress(int progress);
+	}
+
 	private static Set<RevCommit> findCommits(File gitDir,
-			Iterable<ObjectId> conditions) throws IOException, GitAPIException {
+			Iterable<ObjectId> conditions, CommitFeedback fb) throws IOException, GitAPIException {
 		Set<RevCommit> commonCommits = null;
 		try (Repository repository = new FileRepositoryBuilder().setGitDir(gitDir).build()) {
 			try (Git git = new Git(repository)) {
+				int count = 0;
+				for (RevCommit commit : git.log().all().call()) count++;
+				fb.setCommitCount(count);
 				for (ObjectId hash : conditions) {
 					// TODO does the repository even contain the blob?
 					//  - sanity check before going through commits/trees
@@ -125,7 +134,11 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 					Set<AnyObjectId> knownToContain = new HashSet<>();
 					Set<AnyObjectId> knownToBeFreeOf = new HashSet<>();
 
+					fb.startedNewHash(hash);
+
+					int i = 0;
 					for (RevCommit commit : git.log().all().call()) {
+						if (i++ % 64 == 0) fb.setCommitProgress(i);
 						RevTree tree = commit.getTree();
 						try (TreeWalk treeWalk = new TreeWalk(repository)) {
 							treeWalk.addTree(tree);
