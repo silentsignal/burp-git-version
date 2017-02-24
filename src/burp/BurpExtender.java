@@ -121,8 +121,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 					Set<AnyObjectId> knownToContain = new HashSet<>();
 					Set<AnyObjectId> knownToBeFreeOf = new HashSet<>();
 
-					Iterable<RevCommit> commits = git.log().all().call();
-					for (RevCommit commit : commits) {
+					for (RevCommit commit : git.log().all().call()) {
 						RevTree tree = commit.getTree();
 						try (TreeWalk treeWalk = new TreeWalk(repository)) {
 							treeWalk.addTree(tree);
