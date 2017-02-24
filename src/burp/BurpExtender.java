@@ -38,43 +38,47 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		i.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent event) {
-				try {
-					JFileChooser chooser = new JFileChooser();
-					chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-					chooser.setAcceptAllFileFilterUsed(false);
-					chooser.setFileHidingEnabled(false); // .git is considered hidden
-					if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return;
-					File gitDir = chooser.getCurrentDirectory();
-					File gitSubDir = new File(gitDir, ".git");
-					if (gitSubDir.exists()) gitDir = gitSubDir;
-					List<ObjectId> conditions = new ArrayList<>(messages.length);
-					MessageDigest md = MessageDigest.getInstance("SHA");
-					for (IHttpRequestResponse messageInfo : messages) {
-						IHttpService hs = messageInfo.getHttpService();
-						IRequestInfo reqInfo = helpers.analyzeRequest(messageInfo);
-						IResponseInfo respInfo = helpers.analyzeResponse(messageInfo.getResponse());
-						byte[] response = messageInfo.getResponse();
-						int offset = respInfo.getBodyOffset();
-						int length = response.length - offset;
-						md.reset();
-						String prefix = String.format("blob %d\0", length);
-						md.update(prefix.getBytes(StandardCharsets.US_ASCII));
-						md.update(response, offset, length);
-						conditions.add(ObjectId.fromRaw(md.digest()));
-					}
-					long start = System.currentTimeMillis();
-					Set<RevCommit> cs = findCommits(gitDir, conditions);
-					long delta = System.currentTimeMillis() - start;
-					try (PrintStream ps = new PrintStream(stderr)) {
-						ps.format("Processing took %d ms.\n", delta);
-						reportCommits(cs, ps);
-					}
-				} catch (Exception e) {
-					reportError(e, "Git version error"); // FIXME
-				}
+				handleContextMenuAction(messages);
 			}
 		});
 		return Collections.singletonList(i);
+	}
+
+	public void handleContextMenuAction(IHttpRequestResponse[] messages) {
+		try {
+			JFileChooser chooser = new JFileChooser();
+			chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+			chooser.setAcceptAllFileFilterUsed(false);
+			chooser.setFileHidingEnabled(false); // .git is considered hidden
+			if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return;
+			File gitDir = chooser.getCurrentDirectory();
+			File gitSubDir = new File(gitDir, ".git");
+			if (gitSubDir.exists()) gitDir = gitSubDir;
+			List<ObjectId> conditions = new ArrayList<>(messages.length);
+			MessageDigest md = MessageDigest.getInstance("SHA");
+			for (IHttpRequestResponse messageInfo : messages) {
+				IHttpService hs = messageInfo.getHttpService();
+				IRequestInfo reqInfo = helpers.analyzeRequest(messageInfo);
+				IResponseInfo respInfo = helpers.analyzeResponse(messageInfo.getResponse());
+				byte[] response = messageInfo.getResponse();
+				int offset = respInfo.getBodyOffset();
+				int length = response.length - offset;
+				md.reset();
+				String prefix = String.format("blob %d\0", length);
+				md.update(prefix.getBytes(StandardCharsets.US_ASCII));
+				md.update(response, offset, length);
+				conditions.add(ObjectId.fromRaw(md.digest()));
+			}
+			long start = System.currentTimeMillis();
+			Set<RevCommit> cs = findCommits(gitDir, conditions);
+			long delta = System.currentTimeMillis() - start;
+			try (PrintStream ps = new PrintStream(stderr)) {
+				ps.format("Processing took %d ms.\n", delta);
+				reportCommits(cs, ps);
+			}
+		} catch (Exception e) {
+			reportError(e, "Git version error"); // FIXME
+		}
 	}
 
 	private static void reportCommits(Set<RevCommit> cs, PrintStream ps) {
