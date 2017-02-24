@@ -187,7 +187,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 						//  - return immediately / short circuit?
 						//  - ignore file (see conflict below as well)
 					}
-					if (commonCommits.size() == 1) break; // TODO conflicting conditions?
+					if (commonCommits.size() < 2) break; // TODO conflicting conditions?
 				}
 			}
 		}
