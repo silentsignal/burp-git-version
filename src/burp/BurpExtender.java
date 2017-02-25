@@ -160,6 +160,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 				int count = 0;
 				for (RevCommit commit : git.log().all().call()) count++;
 				fb.setCommitCount(count);
+				Iterable<RevCommit> commits = git.log().all().call();
 				for (ObjectId hash : conditions) {
 					if (!repository.hasObject(hash)) {
 						fb.blobNotInRepository(hash);
@@ -171,9 +172,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 					Set<AnyObjectId> knownToBeFreeOf = new HashSet<>();
 
 					fb.startedNewHash(hash);
+					if (commonCommits != null) fb.setCommitCount(commonCommits.size());
 
 					int i = 0;
-					for (RevCommit commit : git.log().all().call()) {
+					for (RevCommit commit : commits) {
 						if (i++ % 64 == 0) fb.setCommitProgress(i);
 						RevTree tree = commit.getTree();
 						try (TreeWalk treeWalk = new TreeWalk(repository)) {
@@ -188,10 +190,9 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 					if (matchingCommits.isEmpty()) {
 						fb.blobNotInRepository(hash);
 						continue;
-					} else if (commonCommits == null) {
-						commonCommits = matchingCommits;
 					} else {
-						commonCommits.retainAll(matchingCommits);
+						commonCommits = matchingCommits;
+						commits = commonCommits;
 					}
 					if (commonCommits.size() < 2) break; // TODO conflicting conditions?
 				}
