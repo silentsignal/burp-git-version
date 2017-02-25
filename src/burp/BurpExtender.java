@@ -186,6 +186,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 							}
 						}
 					}
+					fb.setCommitProgress(i);
 
 					if (matchingCommits.isEmpty()) {
 						fb.blobNotInRepository(hash);
