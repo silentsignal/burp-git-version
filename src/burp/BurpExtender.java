@@ -180,7 +180,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 						RevTree tree = commit.getTree();
 						try (TreeWalk treeWalk = new TreeWalk(repository)) {
 							treeWalk.addTree(tree);
-							if (isHashInTree(treeWalk, tree, hash, knownToContain, knownToBeFreeOf) == RecursiveResult.FOUND) {
+							if (isHashInTree(treeWalk, tree, hash, knownToContain, knownToBeFreeOf)) {
 								commit.disposeBody();
 								matchingCommits.add(commit);
 							}
@@ -202,43 +202,28 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		return commonCommits;
 	}
 
-	private enum RecursiveResult { FOUND, NOT_FOUND, EOF; };
-
-	private static RecursiveResult isHashInTree(TreeWalk treeWalk, AnyObjectId tree,
+	private static boolean isHashInTree(TreeWalk treeWalk, AnyObjectId tree,
 			ObjectId hash, Set<AnyObjectId> knownToContain,
 			Set<AnyObjectId> knownToBeFreeOf) throws IOException {
-		int depth = treeWalk.getDepth();
 		MutableObjectId mid = new MutableObjectId();
-		boolean skip = false;
-treewalk_loop:
-		while (skip || treeWalk.next()) {
-			skip = false;
-			if (treeWalk.getDepth() != depth) {
-				knownToBeFreeOf.add(tree.toObjectId());
-				return RecursiveResult.NOT_FOUND;
-			}
+		List<AnyObjectId> stack = new ArrayList<>();
+		stack.add(tree);
+		while (treeWalk.next()) {
+			int stackTop = stack.size() - 1;
+			if (stackTop != treeWalk.getDepth()) knownToBeFreeOf.add(stack.remove(stackTop));
 			treeWalk.getObjectId(mid, 0);
 			if (mid.equals(hash)) {
-				knownToContain.add(tree.toObjectId());
-				return RecursiveResult.FOUND;
+				knownToContain.addAll(stack);
+				return true;
 			}
 			if (treeWalk.isSubtree()) {
 				if (knownToBeFreeOf.contains(mid)) continue; // more likely ho happen
-				if (knownToContain.contains(mid)) return RecursiveResult.FOUND;
+				if (knownToContain.contains(mid)) return true;
 				treeWalk.enterSubtree();
-				RecursiveResult rr = isHashInTree(treeWalk, mid, hash, knownToContain, knownToBeFreeOf);
-				switch (rr) {
-					case FOUND:
-						knownToContain.add(tree.toObjectId());
-						return RecursiveResult.FOUND;
-					case EOF:
-						break treewalk_loop;
-					case NOT_FOUND:
-						skip = true;
-				}
+				stack.add(mid.toObjectId());
 			}
 		}
 		knownToBeFreeOf.add(tree); // because of EOF, it won't be mutated in caller
-		return RecursiveResult.EOF;
+		return false;
 	}
 }
