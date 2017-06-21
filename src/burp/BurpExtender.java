@@ -56,13 +56,16 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		return Collections.singletonList(i);
 	}
 
-	public void handleContextMenuAction(final Frame owner, IHttpRequestResponse[] messages) {
-		try {
-			final File gitDir = pickGitDir(owner);
-			if (gitDir == null) return;
+	private class Session implements Runnable, CommitFeedback {
+		private final File gitDir;
+		private final IHttpRequestResponse[] messages;
+		private final JProgressBar pb = new JProgressBar();
+		private final JTextArea ta = new JTextArea(25, 80);
+
+		public Session(Frame owner, File gitDir, IHttpRequestResponse[] messages) {
+			this.gitDir = gitDir;
+			this.messages = messages;
 			final JDialog dlg = new JDialog(owner, NAME, false);
-			final JProgressBar pb = new JProgressBar();
-			final JTextArea ta = new JTextArea(25, 80);
 			dlg.add(pb, BorderLayout.PAGE_START);
 			dlg.add(new JScrollPane(ta), BorderLayout.CENTER);
 			JRootPane rp = dlg.getRootPane();
@@ -70,66 +73,73 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 			dlg.pack();
 			dlg.setLocationRelativeTo(owner);
 			dlg.setVisible(true);
+		}
 
-			new Thread(new Runnable() {
-				public void run() {
-					try {
-						long start = System.currentTimeMillis();
-						List<ObjectId> conditions = messagesToConditions(messages);
-						Set<RevCommit> cs = findCommits(gitDir, conditions, new CommitFeedback() {
-							public void setCommitCount(final int count) {
-								SwingUtilities.invokeLater(new Runnable() {
-									public void run() {
-										pb.setMaximum(count);
-									}
-								});
-							}
-
-							public void startedNewHash(final ObjectId hash) {
-								SwingUtilities.invokeLater(new Runnable() {
-									public void run() {
-										ta.append("started working on " + hash + "\n");
-									}
-								});
-							}
-
-							public void setCommitProgress(final int progress) {
-								SwingUtilities.invokeLater(new Runnable() {
-									public void run() {
-										pb.setValue(progress);
-									}
-								});
-							}
-
-							public void blobNotInRepository(final ObjectId hash) {
-								SwingUtilities.invokeLater(new Runnable() {
-									public void run() {
-										ta.append("blob not in repository: " + hash + "\n");
-									}
-								});
-							}
-						});
-						long delta = System.currentTimeMillis() - start;
-						ByteArrayOutputStream baos = new ByteArrayOutputStream();
-						try (PrintStream ps = new PrintStream(baos, false, "UTF-8")) {
-							ps.format("Processing took %d ms.\n", delta);
-							reportCommits(cs, ps);
-						}
-						String msg = new String(baos.toByteArray(), StandardCharsets.UTF_8);
-						SwingUtilities.invokeLater(new Runnable() {
-							public void run() {
-								ta.append(msg);
-							}
-						});
-					} catch (Exception e) {
-						SwingUtilities.invokeLater(new Runnable() {
-							public void run() {
-								reportError(e, "Git version error"); // FIXME
-							}
-						});
-					}
+		public void run() {
+			try {
+				long start = System.currentTimeMillis();
+				List<ObjectId> conditions = messagesToConditions(messages);
+				Set<RevCommit> cs = findCommits(gitDir, conditions, this);
+				long delta = System.currentTimeMillis() - start;
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				try (PrintStream ps = new PrintStream(baos, false, "UTF-8")) {
+					ps.format("Processing took %d ms.\n", delta);
+					reportCommits(cs, ps);
 				}
-			}).start();
+				String msg = new String(baos.toByteArray(), StandardCharsets.UTF_8);
+				SwingUtilities.invokeLater(new Runnable() {
+					public void run() {
+						ta.append(msg);
+					}
+				});
+			} catch (Exception e) {
+				SwingUtilities.invokeLater(new Runnable() {
+					public void run() {
+						reportError(e, "Git version error"); // FIXME
+					}
+				});
+			}
+		}
+
+		public void setCommitCount(final int count) {
+			SwingUtilities.invokeLater(new Runnable() {
+				public void run() {
+					pb.setMaximum(count);
+				}
+			});
+		}
+
+		public void startedNewHash(final ObjectId hash) {
+			SwingUtilities.invokeLater(new Runnable() {
+				public void run() {
+					ta.append("started working on " + hash + "\n");
+				}
+			});
+		}
+
+		public void setCommitProgress(final int progress) {
+			SwingUtilities.invokeLater(new Runnable() {
+				public void run() {
+					pb.setValue(progress);
+				}
+			});
+		}
+
+		public void blobNotInRepository(final ObjectId hash) {
+			SwingUtilities.invokeLater(new Runnable() {
+				public void run() {
+					ta.append("blob not in repository: " + hash + "\n");
+				}
+			});
+		}
+	}
+
+	public void handleContextMenuAction(final Frame owner, IHttpRequestResponse[] messages) {
+		try {
+			final File gitDir = pickGitDir(owner);
+			if (gitDir == null) return;
+			Session s = new Session(owner, gitDir, messages);
+			new Thread(s).start();
 		} catch (Exception e) {
 			reportError(e, "Git version error"); // FIXME
 		}
