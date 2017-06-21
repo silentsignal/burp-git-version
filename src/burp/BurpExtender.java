@@ -195,7 +195,9 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		});
 		reportCommit(ps, "first", cl.get(0));
 		reportCommit(ps, "last", cl.get(cl.size() - 1));
-		ps.format("\nThe full list of affected commits is below:\n\n%s", cl);
+		if (cl.size() < 64) {
+			ps.format("\nThe full list of affected commits is below:\n\n%s", cl);
+		}
 	}
 
 	private static void reportCommit(PrintStream ps, String which, RevCommit commit) {
