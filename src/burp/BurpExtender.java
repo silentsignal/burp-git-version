@@ -25,6 +25,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 	private IExtensionHelpers helpers;
 	private OutputStream stderr;
 	private final static String NAME = "Git version"; // FIXME
+	private static File lastGitDir = null;
 
 	@Override
 	public void registerExtenderCallbacks(IBurpExtenderCallbacks callbacks)
@@ -58,6 +59,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 	public void handleContextMenuAction(final Frame owner, IHttpRequestResponse[] messages) {
 		try {
 			JFileChooser chooser = new JFileChooser();
+			if (lastGitDir != null) chooser.setCurrentDirectory(lastGitDir);
 			chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 			chooser.setAcceptAllFileFilterUsed(false);
 			chooser.setFileHidingEnabled(false); // .git is considered hidden
@@ -66,6 +68,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 			File selectedDir = chooser.getCurrentDirectory();
 			File gitSubDir = new File(selectedDir, ".git");
 			final File gitDir = gitSubDir.exists() ? gitSubDir : selectedDir;
+			lastGitDir = gitDir;
 			List<ObjectId> conditions = new ArrayList<>(messages.length);
 			MessageDigest md = MessageDigest.getInstance("SHA");
 			for (IHttpRequestResponse messageInfo : messages) {
