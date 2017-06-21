@@ -53,9 +53,9 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 			chooser.setFileHidingEnabled(false); // .git is considered hidden
 			chooser.setDialogTitle("Select the Git repository (foo.git or foo/.git)");
 			if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return;
-			File gitDir = chooser.getCurrentDirectory();
-			File gitSubDir = new File(gitDir, ".git");
-			if (gitSubDir.exists()) gitDir = gitSubDir;
+			File selectedDir = chooser.getCurrentDirectory();
+			File gitSubDir = new File(selectedDir, ".git");
+			final File gitDir = gitSubDir.exists() ? gitSubDir : selectedDir;
 			List<ObjectId> conditions = new ArrayList<>(messages.length);
 			MessageDigest md = MessageDigest.getInstance("SHA");
 			for (IHttpRequestResponse messageInfo : messages) {
