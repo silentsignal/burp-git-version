@@ -58,17 +58,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 
 	public void handleContextMenuAction(final Frame owner, IHttpRequestResponse[] messages) {
 		try {
-			JFileChooser chooser = new JFileChooser();
-			if (lastGitDir != null) chooser.setCurrentDirectory(lastGitDir);
-			chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-			chooser.setAcceptAllFileFilterUsed(false);
-			chooser.setFileHidingEnabled(false); // .git is considered hidden
-			chooser.setDialogTitle("Select the Git repository (foo.git or foo/.git)");
-			if (chooser.showOpenDialog(owner) != JFileChooser.APPROVE_OPTION) return;
-			File selectedDir = chooser.getCurrentDirectory();
-			File gitSubDir = new File(selectedDir, ".git");
-			final File gitDir = gitSubDir.exists() ? gitSubDir : selectedDir;
-			lastGitDir = gitDir;
+			final File gitDir = pickGitDir(owner);
+			if (gitDir == null) return;
 			final JDialog dlg = new JDialog(owner, NAME, false);
 			final JProgressBar pb = new JProgressBar();
 			final JTextArea ta = new JTextArea(25, 80);
@@ -142,6 +133,21 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		} catch (Exception e) {
 			reportError(e, "Git version error"); // FIXME
 		}
+	}
+
+	private File pickGitDir(Frame owner) {
+		JFileChooser chooser = new JFileChooser();
+		if (lastGitDir != null) chooser.setCurrentDirectory(lastGitDir);
+		chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+		chooser.setAcceptAllFileFilterUsed(false);
+		chooser.setFileHidingEnabled(false); // .git is considered hidden
+		chooser.setDialogTitle("Select the Git repository (foo.git or foo/.git)");
+		if (chooser.showOpenDialog(owner) != JFileChooser.APPROVE_OPTION) return null;
+		File gitDir = chooser.getCurrentDirectory();
+		File gitSubDir = new File(gitDir, ".git");
+		if (gitSubDir.exists()) gitDir = gitSubDir;
+		lastGitDir = gitDir;
+		return gitDir;
 	}
 
 	private List<ObjectId> messagesToConditions(IHttpRequestResponse[] messages) throws NoSuchAlgorithmException {
