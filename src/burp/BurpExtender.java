@@ -69,21 +69,6 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 			File gitSubDir = new File(selectedDir, ".git");
 			final File gitDir = gitSubDir.exists() ? gitSubDir : selectedDir;
 			lastGitDir = gitDir;
-			List<ObjectId> conditions = new ArrayList<>(messages.length);
-			MessageDigest md = MessageDigest.getInstance("SHA");
-			for (IHttpRequestResponse messageInfo : messages) {
-				IHttpService hs = messageInfo.getHttpService();
-				IRequestInfo reqInfo = helpers.analyzeRequest(messageInfo);
-				IResponseInfo respInfo = helpers.analyzeResponse(messageInfo.getResponse());
-				byte[] response = messageInfo.getResponse();
-				int offset = respInfo.getBodyOffset();
-				int length = response.length - offset;
-				md.reset();
-				String prefix = String.format("blob %d\0", length);
-				md.update(prefix.getBytes(StandardCharsets.US_ASCII));
-				md.update(response, offset, length);
-				conditions.add(ObjectId.fromRaw(md.digest()));
-			}
 			final JDialog dlg = new JDialog(owner, NAME, false);
 			final JProgressBar pb = new JProgressBar();
 			final JTextArea ta = new JTextArea(25, 80);
@@ -99,6 +84,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 				public void run() {
 					try {
 						long start = System.currentTimeMillis();
+						List<ObjectId> conditions = messagesToConditions(messages);
 						Set<RevCommit> cs = findCommits(gitDir, conditions, new CommitFeedback() {
 							public void setCommitCount(final int count) {
 								SwingUtilities.invokeLater(new Runnable() {
@@ -156,6 +142,25 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		} catch (Exception e) {
 			reportError(e, "Git version error"); // FIXME
 		}
+	}
+
+	private List<ObjectId> messagesToConditions(IHttpRequestResponse[] messages) throws NoSuchAlgorithmException {
+		List<ObjectId> conditions = new ArrayList<>(messages.length);
+		MessageDigest md = MessageDigest.getInstance("SHA");
+		for (IHttpRequestResponse messageInfo : messages) {
+			IHttpService hs = messageInfo.getHttpService();
+			IRequestInfo reqInfo = helpers.analyzeRequest(messageInfo);
+			IResponseInfo respInfo = helpers.analyzeResponse(messageInfo.getResponse());
+			byte[] response = messageInfo.getResponse();
+			int offset = respInfo.getBodyOffset();
+			int length = response.length - offset;
+			md.reset();
+			String prefix = String.format("blob %d\0", length);
+			md.update(prefix.getBytes(StandardCharsets.US_ASCII));
+			md.update(response, offset, length);
+			conditions.add(ObjectId.fromRaw(md.digest()));
+		}
+		return conditions;
 	}
 
 	public static void main(String[] args) throws Exception {
