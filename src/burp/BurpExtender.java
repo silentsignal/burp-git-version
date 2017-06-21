@@ -130,10 +130,17 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 							}
 						});
 						long delta = System.currentTimeMillis() - start;
-						try (PrintStream ps = new PrintStream(stderr)) {
+						ByteArrayOutputStream baos = new ByteArrayOutputStream();
+						try (PrintStream ps = new PrintStream(baos, false, "UTF-8")) {
 							ps.format("Processing took %d ms.\n", delta);
 							reportCommits(cs, ps);
 						}
+						String msg = new String(baos.toByteArray(), StandardCharsets.UTF_8);
+						SwingUtilities.invokeLater(new Runnable() {
+							public void run() {
+								ta.append(msg);
+							}
+						});
 					} catch (Exception e) {
 						SwingUtilities.invokeLater(new Runnable() {
 							public void run() {
