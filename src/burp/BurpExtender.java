@@ -7,6 +7,10 @@ import java.security.*;
 import java.util.*;
 import java.util.stream.*;
 
+import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Frame;
 import java.awt.event.*;
 import javax.swing.*;
 
@@ -39,13 +43,19 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		i.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent event) {
-				handleContextMenuAction(messages);
+				// src: https://coderanch.com/t/346777/java/parent-frame-JMenuItem-ActionListener
+				JMenuItem menuItem = (JMenuItem)event.getSource();
+				JPopupMenu popupMenu = (JPopupMenu) menuItem.getParent();
+				Component invoker = popupMenu.getInvoker();
+				JComponent invokerAsJComponent = (JComponent) invoker;
+				Container topLevel = invokerAsJComponent.getTopLevelAncestor();
+				handleContextMenuAction((Frame)topLevel, messages);
 			}
 		});
 		return Collections.singletonList(i);
 	}
 
-	public void handleContextMenuAction(IHttpRequestResponse[] messages) {
+	public void handleContextMenuAction(final Frame owner, IHttpRequestResponse[] messages) {
 		try {
 			JFileChooser chooser = new JFileChooser();
 			chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
@@ -71,13 +81,68 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 				md.update(response, offset, length);
 				conditions.add(ObjectId.fromRaw(md.digest()));
 			}
-			long start = System.currentTimeMillis();
-			Set<RevCommit> cs = findCommits(gitDir, conditions, null); // TODO implement UI feedback
-			long delta = System.currentTimeMillis() - start;
-			try (PrintStream ps = new PrintStream(stderr)) {
-				ps.format("Processing took %d ms.\n", delta);
-				reportCommits(cs, ps);
-			}
+			final JDialog dlg = new JDialog(owner, NAME, false);
+			final JProgressBar pb = new JProgressBar();
+			final JTextArea ta = new JTextArea(25, 80);
+			dlg.add(pb, BorderLayout.PAGE_START);
+			dlg.add(new JScrollPane(ta), BorderLayout.CENTER);
+			JRootPane rp = dlg.getRootPane();
+			rp.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+			dlg.pack();
+			dlg.setLocationRelativeTo(owner);
+			dlg.setVisible(true);
+
+			new Thread(new Runnable() {
+				public void run() {
+					try {
+						long start = System.currentTimeMillis();
+						Set<RevCommit> cs = findCommits(gitDir, conditions, new CommitFeedback() {
+							public void setCommitCount(final int count) {
+								SwingUtilities.invokeLater(new Runnable() {
+									public void run() {
+										pb.setMaximum(count);
+									}
+								});
+							}
+
+							public void startedNewHash(final ObjectId hash) {
+								SwingUtilities.invokeLater(new Runnable() {
+									public void run() {
+										ta.append("started working on " + hash + "\n");
+									}
+								});
+							}
+
+							public void setCommitProgress(final int progress) {
+								SwingUtilities.invokeLater(new Runnable() {
+									public void run() {
+										pb.setValue(progress);
+									}
+								});
+							}
+
+							public void blobNotInRepository(final ObjectId hash) {
+								SwingUtilities.invokeLater(new Runnable() {
+									public void run() {
+										ta.append("blob not in repository: " + hash + "\n");
+									}
+								});
+							}
+						});
+						long delta = System.currentTimeMillis() - start;
+						try (PrintStream ps = new PrintStream(stderr)) {
+							ps.format("Processing took %d ms.\n", delta);
+							reportCommits(cs, ps);
+						}
+					} catch (Exception e) {
+						SwingUtilities.invokeLater(new Runnable() {
+							public void run() {
+								reportError(e, "Git version error"); // FIXME
+							}
+						});
+					}
+				}
+			}).start();
 		} catch (Exception e) {
 			reportError(e, "Git version error"); // FIXME
 		}
