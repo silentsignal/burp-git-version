@@ -78,7 +78,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		public void run() {
 			try {
 				long start = System.currentTimeMillis();
-				List<ObjectId> conditions = messagesToConditions(messages);
+				Iterable<ObjectId> conditions = messagesToConditions(messages);
 				Set<RevCommit> cs = findCommits(gitDir, conditions, this);
 				long delta = System.currentTimeMillis() - start;
 				ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -160,8 +160,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		return gitDir;
 	}
 
-	private List<ObjectId> messagesToConditions(IHttpRequestResponse[] messages) throws NoSuchAlgorithmException {
-		List<ObjectId> conditions = new ArrayList<>(messages.length);
+	private Iterable<ObjectId> messagesToConditions(IHttpRequestResponse[] messages) throws NoSuchAlgorithmException {
+		Set<ObjectId> conditions = new HashSet<>(messages.length);
 		MessageDigest md = MessageDigest.getInstance("SHA");
 		for (IHttpRequestResponse messageInfo : messages) {
 			IHttpService hs = messageInfo.getHttpService();
