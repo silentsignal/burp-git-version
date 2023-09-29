@@ -14,4 +14,21 @@ A directory chooser window pops up, where you should select the locally stored `
 
 The extensions matches file contents with the revisions stored in the Git repo, and reports a commit/time range that matches the static artifacts on the server.
 
+Usage (Command Line)
+--------------------
+
+The JAR can also be used as a standalone utility:
+
+```
+java -cp burp-git-version.jar:burp-extender-api-2.3.jar burp.BurpExtender /path/to/.git <githash0> <githash1> ...
+```
+
+You can grab the Burp Extender API definition from [Maven](https://mvnrepository.com/artifact/net.portswigger.burp.extender/burp-extender-api/2.3) or similar repository.
+
+It's important to note that the command-line interface expects Git object hashes instead of file paths. The Git hashes are not plain-old SHA-1's, you can generate them like this:
+
+```
+git hash-object <filename>
+```
+
 
