@@ -14,13 +14,4 @@ A directory chooser window pops up, where you should select the locally stored `
 
 The extensions matches file contents with the revisions stored in the Git repo, and reports a commit/time range that matches the static artifacts on the server.
 
-Usage (Command Line)
---------------------
-
-You can use the standalone .jar to use the same functionality independently from Burp:
-
-```
-java -cp burp-git-version.jar burp.BurpExtender /path/to/.git /path/to/artifact0 /path/to/artifact1 ...
-```
-
 
